@@ -1,104 +1,75 @@
-# 07 — Troubleshooting
+# 07 — Troubleshooting Guide
 
-> Real errors encountered during our setup session — with root causes and fixes.
+> Real issues encountered during production setup of OraHermes Agent, Web Dashboard, and reverse proxy — with exact root causes and tested fixes.
 
 ---
 
-## 1. Server Issues
+## 1. Web Dashboard & Reverse Proxy Issues
 
-| Error | Cause | Fix |
+| Symptom | Cause | Solution |
 |---|---|---|
-| Server froze completely, SSH timeout "banner exchange" | 1 GB RAM, no swap → OOM during git fetch (used 1.6 GB peak) | Add 4 GB swap BEFORE install |
-| "Error establishing SSH connection" / "Connection timed out" | Server overloaded or crashed | Reboot from Oracle Cloud Console → Compute → Instance → Reboot |
-| Server keeps freezing during heavy operations | RAM too low | Always add swap first; monitor with `free -h` during operations |
+| `HTTP 401 Unauthorized` | HTTP Basic Auth credential mismatch | Reset password using `sudo htpasswd -b /etc/nginx/.htpasswd admin <dashboard-password>`. |
+| `HTTP 405 Method Not Allowed` on `curl -I` | SPA router serves GET for index but rejects HEAD requests | Add `error_page 405 =200 @handle_head;` in Nginx site config with `@handle_head { default_type text/html; return 200; }`. |
+| `FastAPI Host Header Violation` (GHSA-ppp5-vxwm-4cf7) | Loopback host middleware expects `Host: 127.0.0.1` | In Nginx reverse proxy configuration, set `proxy_set_header Host 127.0.0.1;` and pass original client host in `X-Forwarded-Host $host;`. |
+| Web Dashboard fails to start | Missing `web_dist` frontend bundle | Run dashboard with `--skip-build` if production assets are already in `hermes_cli/web_dist/`. |
+| Browser shows SSL warning | Self-signed certificate in use | Standard behavior on self-signed certs. Click "Advanced" -> "Proceed", or configure Let's Encrypt Certbot with a custom domain. |
 
 ---
 
-## 2. Installation Issues
+## 2. Server Performance & Memory Issues
 
-| Error | Cause | Fix |
+| Symptom | Cause | Solution |
 |---|---|---|
-| `libatomic.so.1: cannot open shared object file` | libatomic1 not installed | `sudo apt-get install -y libatomic1` |
-| `INSTALL_EXIT=True` — installer exited immediately | `</dev/null` in `bash -c` with heredoc killed stdin | Create a separate script file instead of inline bash |
-| Install script hangs | Heavy download on slow server | Wait longer; or use screen: `screen -S install` |
-| `hermes: command not found` after install | PATH not updated in current shell | Run `source ~/.bashrc` or use full path `~/.local/bin/hermes` |
-| `--accept-hooks: unrecognized argument` | Flag belongs on hermes, not gateway install | Remove the `--accept-hooks` flag from `hermes gateway install` |
+| Server freezes completely during package build | 1 GB RAM exhausted (no swap) | Allocate a 4 GB swap file (`sudo fallocate -l 4G /swapfile`) before heavy operations. |
+| Memory pressure / high RAM usage | Desktop GUI packages (XRDP, XFCE4, Xorg) running | Purge GUI stack: `sudo apt-get purge -y xrdp xorg 'xfce4*' 'lightdm*' 'gdm3*' && sudo apt-get autoremove -y --purge`. |
+| SSH disconnects during background commands | Session terminated by hangup | Enable systemd lingering: `sudo loginctl enable-linger ubuntu` and manage processes with systemd units. |
 
 ---
 
-## 3. Gateway Issues
+## 3. Telegram Messaging Gateway Issues
 
-| Error | Cause | Fix |
+| Symptom | Cause | Solution |
 |---|---|---|
-| `service not installed` after running install | Manual gateway was still running | Run `hermes gateway stop` first, then `hermes gateway install` |
-| `Gateway starting: deadline` when using `hermes -z` | Slow server startup (1 GB RAM) | Normal behavior; use Telegram to test instead |
-| Gateway stops after SSH disconnect | Linger not enabled | Run `loginctl enable-linger ubuntu` |
-| Gateway not starting on reboot | Linger not enabled | Run `loginctl enable-linger ubuntu` |
+| Bot does not reply to messages | User hasn't initiated chat | In Telegram, open the bot profile and tap **START** first. |
+| `[Telegram] Unauthorized: bot token invalid` | Typo in token copied from BotFather | Re-verify `TELEGRAM_BOT_TOKEN` in `~/.hermes/.env` and restart `systemctl --user restart hermes-gateway`. |
+| Bot ignores messages from user | User ID not whitelisted | Query `@userinfobot` for numeric user ID and add to `TELEGRAM_ALLOWED_USERS` in `~/.hermes/.env`. |
+| Gateway stops when user disconnects SSH | User lingering disabled | Run `sudo loginctl enable-linger ubuntu`. |
 
 ---
 
-## 4. Telegram Issues
+## 4. NVIDIA NIM API Issues
 
-| Error | Cause | Fix |
+| Symptom | Cause | Solution |
 |---|---|---|
-| Bot doesn't respond | User never pressed START | Go to bot in Telegram → press START → send message |
-| `Telegram: chat not found` in logs | User hasn't initiated conversation | User must send first message to bot |
-| Bot token invalid | Wrong token copied | Get fresh token from @BotFather → /mybots |
-| Messages delayed | Server under load | Check `free -h`; restart gateway if needed |
+| `404 Function Not Found for Account` | Selected model is unavailable on current account tier | Use confirmed model `nvidia/nemotron-3-ultra-550b-a55b` or backup `minimaxai/minimax-m3.1-flash`. |
+| `401 Unauthorized` | Invalid or expired API key | Check key at `https://build.nvidia.com` and update `NVIDIA_API_KEY` in `~/.hermes/.env`. |
+| SMS verification fails during account creation | International SMS gateway filtering | Contact `help@build.nvidia.com` with subject `Manual API Key Activation Request - Regional SMS Failure`. |
 
 ---
 
-## 5. NVIDIA API Issues
-
-| Error | Cause | Fix |
-|---|---|---|
-| 404 model not found | Model not available on free tier | Switch to `nvidia/nemotron-3-ultra-550b-a55b` |
-| API timeout | Model overloaded or network issue | Retry; or switch to `minimaxai/minimax-m3.1-flash` |
-| Invalid API key | Key not set correctly | Check `cat ~/.hermes/.env`; regenerate key at build.nvidia.com |
-| Phone verification fails | Country not supported | Email help@build.nvidia.com; see NVIDIA guide |
-
----
-
-## 6. SSH Issues
-
-| Problem | Cause | Fix |
-|---|---|---|
-| `pkill -f <word>` killed SSH session | Pattern matched the SSH command itself | Use `pgrep -af <word>` to find PID first, then `kill <PID>` |
-| SSH "banner exchange" timeout | Server overloaded | Wait for server to recover or reboot from Oracle Console |
-| Permission denied (publickey) | Wrong key file or permissions | Use `-i /path/to/key.key`; check key permissions `chmod 600 key.key` |
-
----
-
-## 7. Harmless Warnings (Ignore These)
-
-```
-cua-driver warning: libXi.so.6 not found → IGNORE (optional desktop tool)
-Auxiliary Nous client unavailable → IGNORE (falls back to main model)
-```
-
----
-
-## 8. Quick Diagnostic Commands
+## 5. Quick Diagnostic Commands
 
 ```bash
-# Check gateway status
-~/.local/bin/hermes gateway status
+# Check Telegram Gateway status
+systemctl --user status hermes-gateway
 
-# View recent logs
-journalctl --user -u hermes-gateway -n 50 --no-pager
+# Check Web Dashboard status
+sudo systemctl status hermes-dashboard
 
-# Check memory
+# Check Nginx status and syntax
+sudo systemctl status nginx
+sudo nginx -t
+
+# Check active listening ports
+sudo ss -tlnp
+
+# Verify memory and swap
 free -h
 
-# Check disk
-df -h
-
-# Check running services
-systemctl --user list-units --type=service
-
-# Check swap
-swapon --show
-
-# Check fail2ban
+# Check fail2ban jails
 sudo fail2ban-client status sshd
 ```
+
+---
+
+*OraHermes Community Agent | Production Troubleshooting Guide*

@@ -1,0 +1,29 @@
+# Agent metadata & dispatch logs (Strictly private)
+.agents/
+.gemini/
+
+# Keys, credentials, environment variables
+*.key
+*.pem
+*.pub
+.env
+*.env
+.env.*
+
+# Python caches & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Node / Web artifacts
+node_modules/
+dist/
+web_dist/
+
+# OS and Editor configs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

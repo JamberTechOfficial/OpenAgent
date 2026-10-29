@@ -1,101 +1,163 @@
-# 🤖 AI Agents — Complete Setup Guide
+# 🤖 OraHermes Agent for Community
 
-> **By JT Community** | Created from real experience setting up AI agents on free cloud servers.
-> 
-> 📦 **Repo:** https://github.com/JamberTechOfficial/OpenAgent  
-> 🌐 **Languages:** English
+> **Production Deployment Guide & Architecture** | Maintained by JT Community.  
+> 📦 **Repository:** https://github.com/JamberTechOfficial/OpenAgent  
+> 🌐 **License:** MIT  
 
 ---
 
-## 🗺️ Table of Contents
+## 📌 Overview
+
+**OraHermes Agent** is a full-featured AI agent system deployed on an Oracle Cloud Always Free Ubuntu instance. It provides an autonomous, multi-modal conversational AI experience powered by **NVIDIA NIM** (`nvidia/nemotron-3-ultra-550b-a55b`) with a **dual-service architecture**:
+
+1. **Telegram Messaging Gateway (`hermes-gateway.service`)**: High-performance, low-latency bot communication using long-polling mode (zero open inbound ports required for chat).
+2. **OraHermes Web Dashboard (`hermes-dashboard.service`)**: Rich interactive management UI (Sessions, Models, Logs, Cron, Skills, Plugins, Profiles, Config, Keys, Documentation) running 24/7 on `127.0.0.1:8000`.
+3. **Secure Reverse Proxy & Authentication**: Nginx reverse proxy listening on port 443 (HTTPS) and port 80 (HTTP) with HTTP Basic Authentication, strictly guarding web dashboard access behind username and password verification.
+4. **Headless & Resource-Optimized**: Completely purged of GUI/XRDP/Xorg overhead, allocating maximum CPU and RAM to the Python 3.11 virtual environment and AI runtime.
+
+---
+
+## 🗺️ Documentation Directory
 
 | # | Guide | Description |
 |---|---|---|
-| 1 | [Oracle Cloud Setup](docs/01-oracle-cloud-setup.md) | Free VPS, credit cards, best regions |
-| 2 | [Free Server Alternatives](docs/02-free-server-alternatives.md) | Render, Railway, GCP, AWS, Azure |
-| 3 | [Hermes Agent Setup](docs/03-hermes-agent-setup.md) | ✅ Tested & working guide |
-| 4 | [Other AI Agents](docs/04-other-ai-agents.md) | AutoGPT, CrewAI, AutoGen, MetaGPT... |
-| 5 | [NVIDIA API Guide](docs/05-nvidia-api-guide.md) | Free API, phone verification issues |
-| 6 | [Telegram Bot Setup](docs/06-telegram-bot-setup.md) | BotFather, User ID |
-| 7 | [Troubleshooting](docs/07-troubleshooting.md) | All real errors & fixes |
+| 📖 | [Complete Guide (v3)](HERMES_COMPLETE_GUIDE.md) | Trilingual (EN / Urdu / Roman) end-to-end setup & operations manual |
+| 01 | [Overview & Architecture](docs/01-overview.md) | Architectural layout, data flows, and security perimeter |
+| 02 | [Oracle Cloud Setup](docs/01-oracle-cloud-setup.md) | Free VPS creation, credit card verification, and networking |
+| 03 | [Free Server Alternatives](docs/02-free-server-alternatives.md) | Comparison across GCP, AWS, Azure, Render, and Railway |
+| 04 | [OraHermes Agent Setup](docs/03-hermes-agent-setup.md) | Python 3.11 with `uv`, service installation, and environment |
+| 05 | [Other AI Agents](docs/04-other-ai-agents.md) | Comparative evaluation with CrewAI, AutoGen, AutoGPT, and MetaGPT |
+| 06 | [NVIDIA NIM API Guide](docs/05-nvidia-api-guide.md) | API keys, tested models, quotas, and regional verification solutions |
+| 07 | [Telegram Bot Setup](docs/06-telegram-bot-setup.md) | BotFather configuration, token management, and user whitelisting |
+| 08 | [Troubleshooting Guide](docs/07-troubleshooting.md) | Solutions for OOM freezing, service traps, and authentication |
+| 09 | [System Architecture & Dashboard](docs/07-architecture.md) | Dual service topology, Nginx Basic Auth, and backup archive |
+
+---
+
+## 🏗️ Architecture Topology
+
+```
+                       [Telegram Users]                     [Web Browser]
+                              │                                   │
+                              │ (Outgoing Polling)                │ (HTTPS / Port 443)
+                              ▼                                   ▼
+                   ┌───────────────────────┐            ┌───────────────────┐
+                   │ Telegram Bot Servers  │            │ Nginx Proxy (443) │
+                   └──────────┬────────────┘            │ + HTTP Basic Auth │
+                              │                         └─────────┬─────────┘
+                              ▼                                   │
+              ┌────────────────────────────────┐                  │ (127.0.0.1:8000)
+              │   Oracle Cloud Free VPS        │                  │
+              │                                │                  ▼
+              │  [hermes-gateway.service]      │        [hermes-dashboard.service]
+              │  (Systemd User Service)        │        (FastAPI / Vue SPA)
+              │               │                │                  │
+              │               ▼                │                  ▼
+              │  [NVIDIA NIM API (Nemotron)]   │        [Sessions, Skills, Cron]
+              └────────────────────────────────┴───────────────────────────┘
+```
+
+---
+
+## ✅ What's Been Done (Real & Tested)
+
+Every component of this repository was deployed and validated on an active Oracle Cloud server:
+
+| Component | Status | Implementation Details |
+|---|---|---|
+| **Oracle Cloud VPS** | ✅ Active | Always Free AMD Micro instance running Ubuntu 20.04.6 LTS |
+| **Swap Memory** | ✅ Active | 4 GB persistent swap file (`/swapfile`) preventing OOM during heavy tasks |
+| **GUI & XRDP Teardown** | ✅ Purged | `xrdp`, `xorg`, `xfce4`, `lightdm`, and `gdm3` purged; freed RAM & disk |
+| **NAT Rule Cleanup** | ✅ Purged | Deleted legacy 443->3389 NAT redirect; port 443 dedicated to HTTPS |
+| **Python Environment** | ✅ Active | Python 3.11 with `uv` virtualenv at `/home/ubuntu/orahermes-agent/venv` |
+| **OraHermes Gateway** | ✅ Active | Systemd user service `hermes-gateway.service` in polling mode |
+| **OraHermes Web Dashboard**| ✅ Active | Systemd service `hermes-dashboard.service` listening on `127.0.0.1:8000` |
+| **Nginx Reverse Proxy** | ✅ Active | Port 443 (HTTPS) & Port 80 (HTTP) reverse proxy with HTTP Basic Auth |
+| **Access Control** | ✅ Active | Web Dashboard protected by HTTP Basic Auth; bot restricted by Telegram user ID |
+| **LLM Inference** | ✅ Active | NVIDIA NIM API with `nvidia/nemotron-3-ultra-550b-a55b` (~2s latency) |
+| **Backup Archive** | ✅ Preserved| Legacy configs and state safely stored in `/home/ubuntu/hermes_backup_20261029_075359/` |
 
 ---
 
 ## 🚀 Quick Start
 
-Not sure where to start? Answer these:
+### 1. Prerequisites
+- Oracle Cloud Always Free VM (Ubuntu 20.04 or 22.04 LTS).
+- NVIDIA Developer API Key from [build.nvidia.com](https://build.nvidia.com).
+- Telegram Bot Token from [@BotFather](https://telegram.me/BotFather) and your Telegram User ID from [@userinfobot](https://telegram.me/userinfobot).
 
-1. **Do you have a server?**
-   - No → [Oracle Cloud Setup](docs/01-oracle-cloud-setup.md) (free forever) or [alternatives](docs/02-free-server-alternatives.md)
-   - Yes → Continue to step 2
+### 2. Configure Credentials
+Add your secrets to `~/.hermes/.env` (permissions `0600`):
+```bash
+NVIDIA_API_KEY=<your-nvidia-api-key>
+TELEGRAM_BOT_TOKEN=<your-telegram-bot-token>
+TELEGRAM_ALLOWED_USERS=<your-telegram-user-id>
+```
 
-2. **Which AI agent do you want?**
-   - Telegram bot assistant → [Hermes Agent](docs/03-hermes-agent-setup.md)
-   - Something else → [Compare all agents](docs/04-other-ai-agents.md)
+### 3. Service Management Commands
 
-3. **Need a free AI API?**
-   - → [NVIDIA API Guide](docs/05-nvidia-api-guide.md)
+#### Telegram Gateway Service (User-level)
+```bash
+# Check status
+systemctl --user status hermes-gateway
 
----
+# Restart service
+systemctl --user restart hermes-gateway
 
-## ✅ What's Been Done (Real, Tested)
+# View live polling logs
+journalctl --user -u hermes-gateway -f
+```
 
-This guide is based on **real experience** — not theoretical. Here's what was actually done:
+#### OraHermes Web Dashboard Service (System-level)
+```bash
+# Check status
+sudo systemctl status hermes-dashboard
 
-| Task | Status | Notes |
-|---|---|---|
-| Oracle Cloud account created | ✅ Done | AMD micro instance, Singapore region |
-| Ubuntu 20.04 server deployed | ✅ Done | `ubuntu@<your-server-ip>` |
-| 4 GB swap added | ✅ Done | CRITICAL — server freezes without it |
-| Hermes v0.22.5 installed | ✅ Done | At `~/.local/bin/hermes` |
-| NVIDIA API configured | ✅ Done | Using `nvidia/nemotron-3-ultra-550b-a55b` |
-| Telegram gateway running | ✅ Done | As user systemd service |
-| Security hardening | ✅ Done | SSH key-only, fail2ban |
-| Reverse proxy setup | ❌ NOT DONE | Not needed (Telegram access only) |
-| Cloudflare tunnel | ❌ NOT DONE | Not needed |
+# Restart service
+sudo systemctl restart hermes-dashboard
 
----
+# View dashboard logs
+journalctl -u hermes-dashboard -n 50 --no-pager
+```
 
-## ⚠️ Important Notes
+#### Nginx Reverse Proxy
+```bash
+# Test Nginx configuration syntax
+sudo nginx -t
 
-- **No credentials in this repo** — all examples use `<placeholder>` values
-- Everything marked ✅ was actually tested on a real Oracle Cloud server
-- Things marked ❌ NOT DONE were deliberately skipped (not needed)
-- The server only needs SSH (port 22) — no web server or public ports needed for Telegram bots
-
----
-
-## 🧑‍💻 About This Project
-
-This repository documents the **real journey** of setting up an AI agent (Hermes) on a free Oracle Cloud server, accessible via Telegram.
-
-**What we learned:**
-- Oracle Cloud's free tier is genuinely free and the best option — if you can get past signup
-- A 1 GB RAM server needs swap memory to survive package installation
-- NVIDIA's free NIM API is excellent but phone verification blocks many countries
-- Telegram + Hermes is a powerful and private setup
-
-**Who is this for:**
-- Pakistani / South Asian developers who want free AI tools
-- Anyone who wants a personal AI assistant without recurring costs
-- Developers learning about AI agents
+# Reload or restart Nginx
+sudo systemctl reload nginx
+```
 
 ---
 
-## 📞 Resources
+## 🔐 Accessing the Web Dashboard
 
-- Telegram BotFather: https://telegram.me/BotFather
-- Get your Telegram User ID: https://telegram.me/userinfobot  
-- NVIDIA NIM API: https://build.nvidia.com
-- Oracle Cloud: https://cloud.oracle.com
-- Hermes Agent: https://github.com/NousResearch/hermes-agent
+1. Navigate to `https://<your-server-ip>/` in your web browser.
+2. Accept the self-signed SSL certificate prompt.
+3. Enter your HTTP Basic Auth credentials (`admin` / `<your-dashboard-password>`).
+4. Access the full OraHermes management interface:
+   - **Sessions**: Monitor and review conversations
+   - **Models**: Switch or configure inference endpoints
+   - **Logs**: Real-time agent event stream
+   - **Cron**: Automated task schedules
+   - **Skills & Plugins**: Custom tools and integrations
+   - **Config & Keys**: Runtime parameter inspection
 
 ---
 
-## 🤝 Contributing
+## ⚠️ Security & Zero-Secrets Policy
 
-Found something wrong or want to add more guides? Open an issue or PR!
+- **No credentials or secrets in Git**: All documentation and examples in this repository use `<placeholder>` values.
+- **Excluded by `.gitignore`**: `.agents/`, `.gemini/`, `*.key`, `*.pem`, `.env`, and virtual environment directories are strictly excluded from version control.
+- **Fail2ban protection**: Protects SSH on port 22 against automated brute-force attacks.
 
 ---
 
-*Made with ❤️ by JT Community | Real experience, real solutions*
+## 🤝 Community & Support
+
+- **Repository**: [JamberTechOfficial/OpenAgent](https://github.com/JamberTechOfficial/OpenAgent)
+- **Upstream Agent**: [jasperan/orahermes-agent](https://github.com/jasperan/orahermes-agent)
+- **NVIDIA NIM Portal**: [build.nvidia.com](https://build.nvidia.com)
+
+*Crafted with precision by JT Community — Real tests, real code, real reliability.*

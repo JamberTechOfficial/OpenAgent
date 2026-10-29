@@ -1,76 +1,88 @@
-# 06 — Telegram Bot Setup
+# 06 — Telegram Bot Gateway Setup for OraHermes
 
 ---
 
 ## 1. What You Need
 
-- A Telegram account
-- A server (see other guides)
+- A Telegram account on mobile or desktop
+- An active Linux server with `orahermes-agent` deployed (see `03-hermes-agent-setup.md`)
 
 ---
 
 ## 2. Create a Telegram Bot via @BotFather
 
-1. Open Telegram
-2. Search for: **@BotFather** → https://telegram.me/BotFather
-3. Press START
-4. Send: `/newbot`
-5. Enter bot name: (e.g., "My Hermes Bot")
-6. Enter bot username: (must end in `bot`, e.g., `myhermesbot` or `my_hermes_bot`)
-7. BotFather replies with your **Bot Token** — looks like: `1234567890:AAFxxxxx...`
-8. SAVE this token — you'll need it
+1. Open Telegram and search for **@BotFather** (`https://telegram.me/BotFather`).
+2. Press **START** or send `/start`.
+3. Send: `/newbot`.
+4. Enter bot display name: e.g. `OraHermes Community Agent`.
+5. Enter bot username (must end in `bot`): e.g. `jtcommunitybot` or `my_orahermes_bot`.
+6. BotFather will reply with your **Bot Token** in the format `1234567890:AAFxxxxx...`.
+7. Save this token as `<your-telegram-bot-token>`.
 
 ---
 
 ## 3. Get Your Telegram User ID
 
-1. Open Telegram
-2. Search for: **@userinfobot** → https://telegram.me/userinfobot
-3. Press START
-4. It replies with your user info including your **numeric User ID** (e.g., `<your-user-id>`)
-5. SAVE this ID
+For security, OraHermes restricts bot command execution strictly to authorized user IDs:
+
+1. In Telegram, search for **@userinfobot** (`https://telegram.me/userinfobot`).
+2. Press **START**.
+3. The bot replies with your profile details, including your numeric **Id** (e.g. `6040662896`).
+4. Save this ID as `<your-telegram-user-id>`.
 
 ---
 
-## 4. Add to Hermes .env
+## 4. Configure `~/.hermes/.env`
+
+Add your credentials to the agent environment file:
 
 ```bash
-TELEGRAM_BOT_TOKEN=<your-bot-token-from-botfather>
-TELEGRAM_ALLOWED_USERS=<your-numeric-user-id>
+cat >> ~/.hermes/.env << 'EOF'
+TELEGRAM_BOT_TOKEN=<your-telegram-bot-token>
+TELEGRAM_ALLOWED_USERS=<your-telegram-user-id>
+EOF
+
+chmod 600 ~/.hermes/.env
+```
+
+If multiple users are authorized to interact with the bot, provide comma-separated numeric IDs:
+```bash
+TELEGRAM_ALLOWED_USERS=<user-id-1>,<user-id-2>
 ```
 
 ---
 
-## 5. Test the Bot
+## 5. Start and Verify the Gateway
 
-1. The bot CANNOT message you first — you must initiate
-2. Find your bot in Telegram (search @yourbotusername)
-3. Press START
-4. Send any message
-5. If Hermes gateway is running, you'll get a reply!
-
----
-
-## 6. Multiple Allowed Users
-
-To allow multiple users:
 ```bash
-TELEGRAM_ALLOWED_USERS=123456789,987654321
+# Restart gateway to load new credentials
+systemctl --user restart hermes-gateway
+
+# Verify status
+systemctl --user status hermes-gateway
+
+# Check journal logs for connection confirmation
+journalctl --user -u hermes-gateway -n 20 --no-pager
+```
+
+Expected log output:
+```
+[Telegram] Connected to Telegram (polling mode)
+[Gateway] Listening for authorized incoming messages...
 ```
 
 ---
 
-## 7. BotFather Additional Commands
+## 6. Initiating Conversation
 
-- `/setdescription` — set bot description
-- `/setabouttext` — set about text
-- `/setuserpic` — set bot profile photo
-- `/mybots` — manage your bots
-- `/deletebot` — delete a bot (careful!)
+> [!IMPORTANT]
+> Telegram bots cannot initiate contact with users. You must open your bot in Telegram and press **START** first before sending prompts.
+
+1. Search for your bot's username in Telegram.
+2. Tap **START**.
+3. Send: `Assalam o Alaikum! Who are you?`
+4. The bot will respond in seconds using the configured NVIDIA NIM model.
 
 ---
 
-## 8. Privacy Settings
-
-- `/setprivacy` in BotFather → set to **DISABLED** if you want bot to read all messages in groups
-- Default: **ENABLED** (bot only sees commands and replies to it)
+*OraHermes Community Agent | Telegram Integration*
